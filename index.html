@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Formily Schema JS 代码转换工具</title>
+    <style>
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+        font-family: Arial, sans-serif;
+      }
+
+      .input-area {
+        width: 100%;
+        height: 300px;
+        margin-bottom: 20px;
+        padding: 10px;
+        font-family: monospace;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        resize: vertical;
+      }
+
+      .button-group {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 10px;
+        margin-top: 20px;
+      }
+
+      .copy-button {
+        background-color: #4caf50;
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
+      }
+
+      .copy-button:hover {
+        background-color: #45a049;
+      }
+
+      .copy-button:active {
+        background-color: #3d8b40;
+      }
+
+      .decode-button {
+        background-color: #2196f3;
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
+      }
+
+      .decode-button:hover {
+        background-color: #1976d2;
+      }
+
+      .decode-button:active {
+        background-color: #1565c0;
+      }
+
+      .status {
+        margin-top: 10px;
+        color: #666;
+      }
+
+      .shortcut-tips {
+        margin-top: 20px;
+        color: #666;
+        font-size: 14px;
+      }
+
+      kbd {
+        background-color: #f7f7f7;
+        border: 1px solid #ccc;
+        border-radius: 3px;
+        padding: 2px 6px;
+        font-family: monospace;
+      }
+
+      .variable-docs {
+        margin: 20px 0;
+        padding: 10px;
+        border: 1px solid #e0e0e0;
+        border-radius: 4px;
+      }
+
+      .variable-docs summary {
+        cursor: pointer;
+        font-weight: bold;
+        margin-bottom: 10px;
+      }
+
+      .variable-list {
+        display: grid;
+        gap: 12px;
+      }
+
+      .variable-item {
+        display: grid;
+        grid-template-columns: 120px 1fr;
+        gap: 10px;
+        align-items: start;
+      }
+
+      .variable-item code {
+        background-color: #f5f5f5;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-family: monospace;
+        color: #e91e63;
+      }
+
+      .variable-item span {
+        color: #666;
+        line-height: 1.4;
+      }
+
+      .editor-loading {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .editor-loading .spinner {
+        width: 40px;
+        height: 40px;
+        border: 3px solid #f3f3f3;
+        border-top: 3px solid #2196f3;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      .maximize-button {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 10000;
+        background-color: #ff9800;
+        color: white;
+        padding: 6px 12px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+      }
+
+      #editor.maximized {
+        position: fixed !important;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: 100vw !important;
+        height: 100vh !important;
+        z-index: 9999;
+        border: none;
+        border-radius: 0;
+      }
+
+      .maximize-button.maximized {
+        background-color: #f57c00;
+      }
+    </style>
+    <!-- 添加 Monaco Editor 依赖 -->
+    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+  </head>
+  <body>
+    <div class="container">
+      <h2>Formily Schema JS 代码转换工具</h2>
+
+      <details class="variable-docs">
+        <summary>变量说明</summary>
+        <div class="variable-list">
+          <div class="variable-item">
+            <code>$self</code>
+            <span
+              >代表当前字段实例，可以在普通属性表达式中使用，也能在 x-reactions
+              中使用</span
+            >
+          </div>
+          <div class="variable-item">
+            <code>$values</code>
+            <span
+              >代表顶层表单数据，可以在普通属性表达式中使用，也能在 x-reactions
+              中使用</span
+            >
+          </div>
+          <div class="variable-item">
+            <code>$form</code>
+            <span
+              >代表当前 Form 实例，可以在普通属性表达式中使用，也能在
+              x-reactions 中使用</span
+            >
+          </div>
+          <div class="variable-item">
+            <code>$observable</code>
+            <span>用于创建响应式对象，使用方式与 observable 一致</span>
+          </div>
+          <div class="variable-item">
+            <code>$memo</code>
+            <span>用于创建持久引用数据，使用方式与 autorun.memo 一致</span>
+          </div>
+          <div class="variable-item">
+            <code>$effect</code>
+            <span
+              >用于响应 autorun 第一次执行的下一个微任务时机与响应 autorun 的
+              dispose，使用方式与 autorun.effect 一致</span
+            >
+          </div>
+          <div class="variable-item">
+            <code>$dependencies</code>
+            <span
+              >只能在 x-reactions 中的表达式消费，与 x-reactions 定义的
+              dependencies 对应，数组顺序一致</span
+            >
+          </div>
+          <div class="variable-item">
+            <code>$deps</code>
+            <span
+              >只能在 x-reactions 中的表达式消费，与 x-reactions 定义的
+              dependencies 对应，数组顺序一致</span
+            >
+          </div>
+          <div class="variable-item">
+            <code>$target</code>
+            <span
+              >只能在 x-reactions 中的表达式消费，代表主动模式的 target
+              字段</span
+            >
+          </div>
+        </div>
+      </details>
+
+      <p>请在下方输入要转换的代码：</p>
+      <!-- 替换 textarea 为 monaco-editor 容器 -->
+      <div
+        id="editor"
+        style="
+          height: 300px;
+          border: 1px solid #ccc;
+          border-radius: 4px;
+          position: relative;
+        "
+      >
+        <button
+          onclick="toggleMaximize()"
+          class="maximize-button"
+          id="maximize-btn"
+        >
+          全屏
+        </button>
+        <div id="editor-loading" class="editor-loading">
+          <div class="spinner"></div>
+          <span>加载编辑器中...</span>
+        </div>
+      </div>
+      <div class="button-group">
+        <button onclick="convertAndCopy()" class="copy-button">
+          转换并复制
+        </button>
+        <button onclick="decodeAndShow()" class="decode-button">解码</button>
+      </div>
+      <div id="status" class="status"></div>
+    </div>
+
+    <script>
+      // 添加获取 NPM CDN 注册表的函数
+      function getNpmCDNRegistry() {
+        return "https://unpkg.com";
+      }
+
+      // 添加加载依赖的函数
+      async function loadDependencies(deps) {
+        return Promise.all(
+          deps.map(async ({ name, path }) => ({
+            name,
+            path,
+            library: await fetch(`${getNpmCDNRegistry()}/${name}/${path}`).then(
+              (res) => res.text()
+            ),
+          }))
+        );
+      }
+
+      // 添加初始化声明的函数
+      async function initDeclaration(monaco) {
+        const deps = await loadDependencies([
+          { name: "@formily/core", path: "dist/formily.core.all.d.ts" },
+        ]);
+
+        deps?.forEach(({ name, library }) => {
+          monaco.languages.typescript.typescriptDefaults.addExtraLib(
+            `declare module '${name}'{ ${library} }`,
+            `file:///node_modules/${name}/index.d.ts`
+          );
+        });
+
+        monaco.languages.typescript.typescriptDefaults.addExtraLib(
+          `
+          import { Form, Field } from '@formily/core'
+          declare global {
+            declare var $form: Form
+            declare var $values: any
+            declare var $self: Field
+            declare var $observable: <T>(target: T, deps?: any[]) => T
+            declare var $memo: <T>(callback: () => T, deps?: any[]) => T
+            declare var $effect: (callback: () => void | (() => void), deps?: any[]) => void
+            declare var $props: (props: any) => void
+          }
+        `,
+          `file:///node_modules/formily_global.d.ts`
+        );
+      }
+
+      let editor;
+
+      // 修改 Monaco Editor 初始化配置
+      require.config({
+        paths: {
+          vs: "https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs",
+        },
+      });
+
+      require(["vs/editor/editor.main"], async function () {
+        try {
+          // 设置 TypeScript 编译器选项
+          monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
+            target: monaco.languages.typescript.ScriptTarget.Latest,
+            moduleResolution:
+              monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+            module: monaco.languages.typescript.ModuleKind.CommonJS,
+            allowNonTsExtensions: true,
+            jsx: monaco.languages.typescript.JsxEmit.React,
+            allowJs: true,
+            typeRoots: ["node_modules/@types"],
+          });
+
+          // 初始化类型声明
+          await initDeclaration(monaco);
+
+          // 创建编辑器
+          editor = monaco.editor.create(document.getElementById("editor"), {
+            value: "",
+            language: "typescript", // 改为 typescript
+            theme: "vs",
+            minimap: { enabled: false },
+            fontSize: 14,
+            lineNumbers: "on",
+            scrollBeyondLastLine: false,
+            automaticLayout: true,
+          });
+
+          // 隐藏 loading
+          document.getElementById("editor-loading").style.display = "none";
+        } catch (error) {
+          console.error("编辑器初始化失败:", error);
+          document.getElementById("editor-loading").innerHTML = `
+            <span style="color: #f44336;">编辑器加载失败，请刷新页面重试</span>
+          `;
+        }
+      });
+
+      function showStatus(message, isError = false) {
+        const status = document.getElementById("status");
+        status.textContent = message;
+        status.style.color = isError ? "#f44336" : "#666";
+
+        setTimeout(() => {
+          status.textContent = "";
+          status.style.color = "#666";
+        }, 3000);
+      }
+
+      function convertAndCopy() {
+        const input = editor.getValue();
+        const convertedString = JSON.stringify(input);
+
+        navigator.clipboard
+          .writeText(convertedString)
+          .then(() => {
+            showStatus("已复制到剪贴板！");
+          })
+          .catch((err) => {
+            console.error("复制失败:", err);
+            showStatus("复制失败，请手动复制", true);
+          });
+      }
+
+      function decodeAndShow() {
+        const formatToDoubleQuotes = (str) => {
+          // 如果已经是双引号包裹的，直接返回
+          if (str.startsWith('"') && str.endsWith('"')) {
+            return str;
+          }
+          // 移除首尾的单引号（如果有）
+          const content =
+            str.startsWith("'") && str.endsWith("'") ? str.slice(1, -1) : str;
+          // 转义内部的双引号，并用双引号包裹
+          return `"${content.replace(/"/g, '\\"')}"`;
+        };
+
+        try {
+          const input = editor.getValue();
+          const decodedString = JSON.parse(formatToDoubleQuotes(input));
+          editor.setValue(decodedString);
+          showStatus("解码成功！");
+        } catch (err) {
+          console.error("解码失败:", err);
+          showStatus("解码失败，请确保输入的是有效的转换后字符串", true);
+        }
+      }
+
+      function toggleMaximize() {
+        const editorElement = document.getElementById("editor");
+        const maximizeBtn = document.getElementById("maximize-btn");
+
+        editorElement.classList.toggle("maximized");
+        maximizeBtn.classList.toggle("maximized");
+
+        if (editorElement.classList.contains("maximized")) {
+          maximizeBtn.textContent = "退出全屏";
+          document.body.style.overflow = "hidden"; // 防止滚动
+        } else {
+          maximizeBtn.textContent = "全屏";
+          document.body.style.overflow = "";
+        }
+        editor.layout();
+      }
+    </script>
+  </body>
+</html>
